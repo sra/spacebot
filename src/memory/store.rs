@@ -35,8 +35,8 @@ impl MemoryStore {
         sqlx::query(
             r#"
             INSERT INTO memories (id, content, memory_type, importance, created_at, updated_at, 
-                                 last_accessed_at, access_count, source, channel_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 last_accessed_at, access_count, source, channel_id, forgotten)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#
         )
         .bind(&memory.id)
@@ -49,6 +49,7 @@ impl MemoryStore {
         .bind(memory.access_count)
         .bind(&memory.source)
         .bind(memory.channel_id.as_ref().map(|id| id.as_ref()))
+        .bind(memory.forgotten)
         .execute(&self.pool)
         .await
         .with_context(|| format!("failed to save memory {}", memory.id))?;
@@ -61,7 +62,7 @@ impl MemoryStore {
         let row = sqlx::query(
             r#"
             SELECT id, content, memory_type, importance, created_at, updated_at,
-                   last_accessed_at, access_count, source, channel_id
+                   last_accessed_at, access_count, source, channel_id, forgotten
             FROM memories
             WHERE id = ?
             "#
@@ -80,7 +81,8 @@ impl MemoryStore {
             r#"
             UPDATE memories 
             SET content = ?, memory_type = ?, importance = ?, updated_at = ?, 
-                last_accessed_at = ?, access_count = ?, source = ?, channel_id = ?
+                last_accessed_at = ?, access_count = ?, source = ?, channel_id = ?,
+                forgotten = ?
             WHERE id = ?
             "#
         )
@@ -92,6 +94,7 @@ impl MemoryStore {
         .bind(memory.access_count)
         .bind(&memory.source)
         .bind(memory.channel_id.as_ref().map(|id| id.as_ref()))
+        .bind(memory.forgotten)
         .bind(&memory.id)
         .execute(&self.pool)
         .await
@@ -131,6 +134,21 @@ impl MemoryStore {
         Ok(())
     }
     
+    /// Mark a memory as forgotten. The memory stays in the database but is
+    /// excluded from search results and recall.
+    pub async fn forget(&self, id: &str) -> Result<bool> {
+        let result = sqlx::query(
+            "UPDATE memories SET forgotten = 1, updated_at = ? WHERE id = ? AND forgotten = 0"
+        )
+        .bind(chrono::Utc::now())
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .with_context(|| format!("failed to forget memory {}", id))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
     /// Create an association between two memories.
     pub async fn create_association(&self, association: &Association) -> Result<()> {
         sqlx::query(
@@ -189,9 +207,9 @@ impl MemoryStore {
         let rows = sqlx::query(
             r#"
             SELECT id, content, memory_type, importance, created_at, updated_at,
-                   last_accessed_at, access_count, source, channel_id
+                   last_accessed_at, access_count, source, channel_id, forgotten
             FROM memories
-            WHERE memory_type = ?
+            WHERE memory_type = ? AND forgotten = 0
             ORDER BY importance DESC, updated_at DESC
             LIMIT ?
             "#
@@ -210,9 +228,9 @@ impl MemoryStore {
         let rows = sqlx::query(
             r#"
             SELECT id, content, memory_type, importance, created_at, updated_at,
-                   last_accessed_at, access_count, source, channel_id
+                   last_accessed_at, access_count, source, channel_id, forgotten
             FROM memories
-            WHERE importance >= ?
+            WHERE importance >= ? AND forgotten = 0
             ORDER BY importance DESC, updated_at DESC
             LIMIT ?
             "#
@@ -246,6 +264,7 @@ fn row_to_memory(row: &sqlx::sqlite::SqliteRow) -> Memory {
         access_count: row.try_get("access_count").unwrap_or(0),
         source: row.try_get("source").ok(),
         channel_id: channel_id.map(|id| Arc::from(id) as crate::ChannelId),
+        forgotten: row.try_get::<bool, _>("forgotten").unwrap_or(false),
     }
 }
 
@@ -258,6 +277,7 @@ fn parse_memory_type(s: &str) -> MemoryType {
         "identity" => MemoryType::Identity,
         "event" => MemoryType::Event,
         "observation" => MemoryType::Observation,
+        "goal" => MemoryType::Goal,
         _ => MemoryType::Fact,
     }
 }

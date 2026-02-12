@@ -109,7 +109,10 @@ impl Tool for MemorySaveTool {
                     },
                     "memory_type": {
                         "type": "string",
-                        "enum": ["fact", "preference", "decision", "identity", "event", "observation"],
+                        "enum": crate::memory::types::MemoryType::ALL
+                            .iter()
+                            .map(|t| t.to_string())
+                            .collect::<Vec<_>>(),
                         "description": "The type of memory being saved. Choose the most appropriate type."
                     },
                     "importance": {
@@ -166,6 +169,7 @@ impl Tool for MemorySaveTool {
             "identity" => MemoryType::Identity,
             "event" => MemoryType::Event,
             "observation" => MemoryType::Observation,
+            "goal" => MemoryType::Goal,
             _ => MemoryType::Fact,
         };
 

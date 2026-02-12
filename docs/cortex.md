@@ -19,8 +19,8 @@ On a configurable interval (default: 60 minutes), the cortex:
    - Recent events (what happened in the last week or two)
    - Preferences and patterns (communication style, tool choices)
    - High-importance context (anything critical that should always be in mind)
-3. The LLM makes 3-5 `memory_recall` queries with different search terms, building a picture across the full memory graph
-4. It synthesizes the results into a concise briefing (~500 words, configurable)
+3. The LLM makes one `memory_recall` query per memory type (identity, fact, decision, event, preference, observation) with `max_results: 25`, building a picture across the full memory graph
+4. It synthesizes the results into a detailed briefing (~1500 words, configurable)
 5. The bulletin is cached in `RuntimeConfig::memory_bulletin` via `ArcSwap`
 6. Every channel reads it on every turn — lock-free, zero-copy via `Arc`
 
@@ -41,19 +41,9 @@ The bulletin is injected into the system prompt between identity context and the
 [from USER.md]
 
 ## Memory Context                    ← this is the bulletin
-James is a software engineer building SpaceDrive, a cross-platform file
-manager in Rust. He recently migrated the database layer from PostgreSQL
-to SQLite for the prototype phase, prioritizing simplicity.
-
-Current focus is on the authentication system — specifically JWT-based
-tokens for the mobile app. He rejected session cookies due to the
-cross-platform requirement.
-
-James prefers short, direct responses. He works primarily in Rust and
-TypeScript. He tends to work late on Fridays.
-
-Open question: the team hasn't decided on the rate limiting strategy yet.
-James mentioned wanting to revisit this after the auth system is done.
+[A detailed, ~1500 word briefing synthesized from all six memory types:
+identity, facts, decisions, events, preferences, and observations.
+Organized by relevance and actionability, not by memory type.]
 
 ## [Channel prompt follows...]
 ```
@@ -149,10 +139,10 @@ tick_interval_secs = 30
 bulletin_interval_secs = 3600
 
 # Target word count for the memory bulletin.
-bulletin_max_words = 500
+bulletin_max_words = 1500
 
 # Max LLM turns for bulletin generation (allows multiple memory_recall queries).
-bulletin_max_turns = 10
+bulletin_max_turns = 15
 
 # Worker is considered hanging if no status update for this long.
 worker_timeout_secs = 300

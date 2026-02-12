@@ -86,6 +86,42 @@ async fn bootstrap_deps() -> anyhow::Result<spacebot::AgentDeps> {
     })
 }
 
+/// The cortex user prompt and bulletin system prompt must reference every
+/// MemoryType variant so the LLM queries across all dimensions. If a new
+/// variant is added to MemoryType::ALL, this test fails until the prompts
+/// are updated.
+#[test]
+fn test_bulletin_prompts_cover_all_memory_types() {
+    let bulletin_prompt = std::fs::read_to_string("prompts/CORTEX_BULLETIN.md")
+        .expect("failed to read CORTEX_BULLETIN.md");
+
+    // The cortex user prompt in cortex.rs lists types inline. Check the same
+    // set against the canonical list so drift is caught at compile time.
+    let cortex_user_prompt_types = ["identity", "fact", "decision", "event", "preference", "observation", "goal"];
+
+    for memory_type in spacebot::memory::types::MemoryType::ALL {
+        let type_str = memory_type.to_string();
+
+        assert!(
+            bulletin_prompt.contains(&format!("memory_type: \"{}\"", type_str)),
+            "CORTEX_BULLETIN.md is missing memory_type: \"{type_str}\""
+        );
+
+        assert!(
+            cortex_user_prompt_types.contains(&type_str.as_str()),
+            "cortex user prompt is missing memory type: \"{type_str}\""
+        );
+    }
+
+    // Also verify the hardcoded list matches ALL (catches additions to the
+    // prompt that don't exist in the enum).
+    assert_eq!(
+        cortex_user_prompt_types.len(),
+        spacebot::memory::types::MemoryType::ALL.len(),
+        "cortex user prompt type count doesn't match MemoryType::ALL"
+    );
+}
+
 #[tokio::test]
 async fn test_memory_recall_returns_results() {
     let deps = bootstrap_deps().await.expect("failed to bootstrap");

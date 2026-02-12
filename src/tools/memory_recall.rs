@@ -105,7 +105,10 @@ impl Tool for MemoryRecallTool {
                     },
                     "memory_type": {
                         "type": "string",
-                        "enum": ["fact", "preference", "decision", "identity", "event", "observation"],
+                        "enum": crate::memory::types::MemoryType::ALL
+                            .iter()
+                            .map(|t| t.to_string())
+                            .collect::<Vec<_>>(),
                         "description": "Optional filter to only return memories of a specific type"
                     }
                 },

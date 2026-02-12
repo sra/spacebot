@@ -16,6 +16,9 @@ pub struct Memory {
     pub access_count: i64,
     pub source: Option<String>,
     pub channel_id: Option<crate::ChannelId>,
+    /// Soft-delete flag. Forgotten memories are excluded from search and recall
+    /// but remain in the database.
+    pub forgotten: bool,
 }
 
 impl Memory {
@@ -36,6 +39,7 @@ impl Memory {
             access_count: 0,
             source: None,
             channel_id: None,
+            forgotten: false,
         }
     }
 
@@ -78,6 +82,7 @@ impl MemoryType {
             MemoryType::Fact => 0.6,
             MemoryType::Event => 0.4,
             MemoryType::Observation => 0.3,
+            MemoryType::Goal => 0.9,
         }
     }
 }
@@ -98,6 +103,21 @@ pub enum MemoryType {
     Event,
     /// Something the system noticed.
     Observation,
+    /// Something the user or agent wants to achieve.
+    Goal,
+}
+
+impl MemoryType {
+    /// All variants in definition order.
+    pub const ALL: &[MemoryType] = &[
+        MemoryType::Fact,
+        MemoryType::Preference,
+        MemoryType::Decision,
+        MemoryType::Identity,
+        MemoryType::Event,
+        MemoryType::Observation,
+        MemoryType::Goal,
+    ];
 }
 
 impl std::fmt::Display for MemoryType {
@@ -109,6 +129,7 @@ impl std::fmt::Display for MemoryType {
             MemoryType::Identity => write!(f, "identity"),
             MemoryType::Event => write!(f, "event"),
             MemoryType::Observation => write!(f, "observation"),
+            MemoryType::Goal => write!(f, "goal"),
         }
     }
 }

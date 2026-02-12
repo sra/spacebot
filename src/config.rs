@@ -201,8 +201,8 @@ impl Default for CortexConfig {
             branch_timeout_secs: 60,
             circuit_breaker_threshold: 3,
             bulletin_interval_secs: 3600,
-            bulletin_max_words: 500,
-            bulletin_max_turns: 10,
+            bulletin_max_words: 1500,
+            bulletin_max_turns: 15,
         }
     }
 }

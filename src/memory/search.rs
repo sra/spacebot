@@ -83,7 +83,9 @@ impl MemorySearch {
             Ok(fts_matches) => {
                 for (memory_id, score) in fts_matches {
                     if let Some(memory) = self.store.load(&memory_id).await? {
-                        fts_results.push(ScoredMemory { memory, score: score as f64 });
+                        if !memory.forgotten {
+                            fts_results.push(ScoredMemory { memory, score: score as f64 });
+                        }
                     }
                 }
             }
@@ -99,7 +101,9 @@ impl MemorySearch {
                 for (memory_id, distance) in vector_matches {
                     let similarity = 1.0 - distance;
                     if let Some(memory) = self.store.load(&memory_id).await? {
-                        vector_results.push(ScoredMemory { memory, score: similarity as f64 });
+                        if !memory.forgotten {
+                            vector_results.push(ScoredMemory { memory, score: similarity as f64 });
+                        }
                     }
                 }
             }
@@ -188,6 +192,9 @@ impl MemorySearch {
                 visited.insert(related_id.clone());
                 
                 if let Some(memory) = self.store.load(related_id).await? {
+                    if memory.forgotten {
+                        continue;
+                    }
                     // Score based on relation type and weight
                     let type_multiplier = match assoc.relation_type {
                         RelationType::Updates => 1.5,

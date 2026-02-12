@@ -51,13 +51,11 @@ pub async fn run_maintenance(
 /// Apply importance decay based on recency and access patterns.
 async fn apply_decay(memory_store: &MemoryStore, decay_rate: f32) -> Result<usize> {
     // Get all non-identity memories
-    let all_types = vec![
-        MemoryType::Fact,
-        MemoryType::Preference,
-        MemoryType::Decision,
-        MemoryType::Event,
-        MemoryType::Observation,
-    ];
+    let all_types: Vec<_> = MemoryType::ALL
+        .iter()
+        .copied()
+        .filter(|t| *t != MemoryType::Identity)
+        .collect();
     
     let mut decayed_count = 0;
     

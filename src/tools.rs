@@ -12,7 +12,7 @@
 //! - No memory tools — the channel delegates memory work to branches.
 //!
 //! **Branch ToolServer** (one per branch, isolated):
-//! - `memory_save` + `memory_recall` — registered at creation
+//! - `memory_save` + `memory_recall` + `memory_delete` — registered at creation
 //!
 //! **Worker ToolServer** (one per worker, created at spawn time):
 //! - `shell`, `file`, `exec` — stateless, registered at creation
@@ -30,6 +30,7 @@ pub mod skip;
 pub mod react;
 pub mod memory_save;
 pub mod memory_recall;
+pub mod memory_delete;
 pub mod set_status;
 pub mod shell;
 pub mod file;
@@ -47,6 +48,7 @@ pub use skip::{SkipTool, SkipArgs, SkipOutput, SkipError, SkipFlag, new_skip_fla
 pub use react::{ReactTool, ReactArgs, ReactOutput, ReactError};
 pub use memory_save::{MemorySaveTool, MemorySaveArgs, MemorySaveOutput, MemorySaveError, AssociationInput};
 pub use memory_recall::{MemoryRecallTool, MemoryRecallArgs, MemoryRecallOutput, MemoryRecallError, MemoryOutput};
+pub use memory_delete::{MemoryDeleteTool, MemoryDeleteArgs, MemoryDeleteOutput, MemoryDeleteError};
 pub use set_status::{SetStatusTool, SetStatusArgs, SetStatusOutput, SetStatusError};
 pub use shell::{ShellTool, ShellArgs, ShellOutput, ShellError, ShellResult};
 pub use file::{FileTool, FileArgs, FileOutput, FileError, FileEntryOutput, FileEntry, FileType};
@@ -123,7 +125,8 @@ pub async fn remove_channel_tools(
 pub fn create_branch_tool_server(memory_search: Arc<MemorySearch>) -> ToolServerHandle {
     ToolServer::new()
         .tool(MemorySaveTool::new(memory_search.clone()))
-        .tool(MemoryRecallTool::new(memory_search))
+        .tool(MemoryRecallTool::new(memory_search.clone()))
+        .tool(MemoryDeleteTool::new(memory_search))
         .run()
 }
 
