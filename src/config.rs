@@ -404,6 +404,8 @@ pub struct Binding {
     pub chat_id: Option<String>,
     /// Channel IDs this binding applies to. If empty, all channels in the guild/workspace are allowed.
     pub channel_ids: Vec<String>,
+    /// User IDs allowed to DM the bot through this binding.
+    pub dm_allowed_users: Vec<String>,
 }
 
 impl Binding {
@@ -411,6 +413,14 @@ impl Binding {
     fn matches(&self, message: &crate::InboundMessage) -> bool {
         if self.channel != message.source {
             return false;
+        }
+
+        // DM messages have no guild_id — match if the sender is in dm_allowed_users
+        let is_dm =
+            message.metadata.get("discord_guild_id").is_none() && message.source == "discord";
+        if is_dm {
+            return !self.dm_allowed_users.is_empty()
+                && self.dm_allowed_users.contains(&message.sender_id);
         }
 
         if let Some(guild_id) = &self.guild_id {
@@ -627,11 +637,22 @@ impl DiscordPermissions {
             filter
         };
 
-        let dm_allowed_users = discord
+        let mut dm_allowed_users: Vec<u64> = discord
             .dm_allowed_users
             .iter()
             .filter_map(|id| id.parse::<u64>().ok())
             .collect();
+
+        // Also collect dm_allowed_users from bindings
+        for binding in &discord_bindings {
+            for id in &binding.dm_allowed_users {
+                if let Ok(uid) = id.parse::<u64>() {
+                    if !dm_allowed_users.contains(&uid) {
+                        dm_allowed_users.push(uid);
+                    }
+                }
+            }
+        }
 
         Self {
             guild_filter,
@@ -875,6 +896,8 @@ struct TomlBinding {
     chat_id: Option<String>,
     #[serde(default)]
     channel_ids: Vec<String>,
+    #[serde(default)]
+    dm_allowed_users: Vec<String>,
 }
 
 /// Resolve a value that might be an "env:VAR_NAME" reference.
@@ -1309,6 +1332,7 @@ impl Config {
                 workspace_id: b.workspace_id,
                 chat_id: b.chat_id,
                 channel_ids: b.channel_ids,
+                dm_allowed_users: b.dm_allowed_users,
             })
             .collect();
 
@@ -1810,15 +1834,6 @@ pub fn run_onboarding() -> anyhow::Result<PathBuf> {
         config_content.push_str("enabled = true\n");
         config_content.push_str(&format!("token = \"{}\"\n", discord.token));
 
-        if !discord.dm_user_ids.is_empty() {
-            let ids: Vec<String> = discord
-                .dm_user_ids
-                .iter()
-                .map(|id| format!("\"{id}\""))
-                .collect();
-            config_content.push_str(&format!("dm_allowed_users = [{}]\n", ids.join(", ")));
-        }
-
         // Write the binding
         config_content.push_str("\n[[bindings]]\n");
         config_content.push_str(&format!("agent_id = \"{agent_id}\"\n"));
@@ -1833,6 +1848,14 @@ pub fn run_onboarding() -> anyhow::Result<PathBuf> {
                 .map(|id| format!("\"{id}\""))
                 .collect();
             config_content.push_str(&format!("channel_ids = [{}]\n", ids.join(", ")));
+        }
+        if !discord.dm_user_ids.is_empty() {
+            let ids: Vec<String> = discord
+                .dm_user_ids
+                .iter()
+                .map(|id| format!("\"{id}\""))
+                .collect();
+            config_content.push_str(&format!("dm_allowed_users = [{}]\n", ids.join(", ")));
         }
     }
 
