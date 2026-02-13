@@ -69,6 +69,38 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc};
 
+/// Maximum byte length for tool output strings (stdout, stderr, file content).
+/// ~50KB keeps a single tool result under ~12,500 tokens (at ~4 chars/token).
+pub const MAX_TOOL_OUTPUT_BYTES: usize = 50_000;
+
+/// Maximum number of entries returned by directory listings.
+pub const MAX_DIR_ENTRIES: usize = 500;
+
+/// Truncate a string to a byte limit, appending a notice if truncated.
+///
+/// Cuts at the last valid char boundary before `max_bytes` so we never split
+/// a multi-byte character. The truncation notice tells the LLM the original
+/// size and how to get the rest (pipe through head/tail or read with offset).
+pub fn truncate_output(value: &str, max_bytes: usize) -> String {
+    if value.len() <= max_bytes {
+        return value.to_string();
+    }
+
+    // Find the last char boundary at or before max_bytes
+    let mut end = max_bytes;
+    while end > 0 && !value.is_char_boundary(end) {
+        end -= 1;
+    }
+
+    let total = value.len();
+    let truncated_bytes = total - end;
+    format!(
+        "{}\n\n[output truncated: showed {end} of {total} bytes ({truncated_bytes} bytes omitted). \
+         Use head/tail/offset to read specific sections]",
+        &value[..end]
+    )
+}
+
 /// Add per-turn tools to a channel's ToolServer.
 ///
 /// Called when a conversation turn begins. These tools hold per-turn state

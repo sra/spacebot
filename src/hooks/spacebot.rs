@@ -132,27 +132,35 @@ where
         _args: &str,
         result: &str,
     ) -> HookAction {
-        // Scan for potential leaks in tool output
+        // Scan for potential leaks in tool output and terminate if found.
+        // The result is already in Rig's history at this point, but terminating
+        // prevents the agent from forwarding the leaked content to external
+        // services via subsequent tool calls.
         if let Some(leak) = self.scan_for_leaks(result) {
-            tracing::warn!(
+            tracing::error!(
                 process_id = %self.process_id,
                 tool_name = %tool_name,
-                leak = %leak,
-                "potential secret leak detected in tool output"
+                leak_prefix = %&leak[..leak.len().min(8)],
+                "secret leak detected in tool output, terminating agent"
             );
+            return HookAction::Terminate { reason: "Tool output contained a secret. Agent terminated to prevent exfiltration.".into() };
         }
 
+        // Cap the result stored in the broadcast event to avoid blowing up
+        // event subscribers with multi-MB tool results.
+        let capped_result = crate::tools::truncate_output(result, crate::tools::MAX_TOOL_OUTPUT_BYTES);
         let event = ProcessEvent::ToolCompleted {
             agent_id: self.agent_id.clone(),
             process_id: self.process_id.clone(),
             tool_name: tool_name.to_string(),
-            result: result.to_string(),
+            result: capped_result,
         };
         let _ = self.event_tx.send(event);
 
         tracing::debug!(
             process_id = %self.process_id,
             tool_name = %tool_name,
+            result_bytes = result.len(),
             "tool call completed"
         );
 

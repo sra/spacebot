@@ -144,8 +144,14 @@ impl Tool for ShellTool {
                 exit_code: -1,
             })?;
 
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let stdout = crate::tools::truncate_output(
+            &String::from_utf8_lossy(&output.stdout),
+            crate::tools::MAX_TOOL_OUTPUT_BYTES,
+        );
+        let stderr = crate::tools::truncate_output(
+            &String::from_utf8_lossy(&output.stderr),
+            crate::tools::MAX_TOOL_OUTPUT_BYTES,
+        );
         let exit_code = output.status.code().unwrap_or(-1);
         let success = output.status.success();
 

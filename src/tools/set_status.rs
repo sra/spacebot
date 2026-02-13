@@ -81,11 +81,19 @@ impl Tool for SetStatusTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        // Cap status length to prevent context bloat in the status block.
+        // Status is rendered into every channel turn so it should stay short.
+        let status = if args.status.len() > 256 {
+            format!("{}...", &args.status[..args.status[..256].rfind(char::is_whitespace).unwrap_or(256)])
+        } else {
+            args.status
+        };
+
         let event = ProcessEvent::WorkerStatus {
             agent_id: self.agent_id.clone(),
             worker_id: self.worker_id,
             channel_id: self.channel_id.clone(),
-            status: args.status.clone(),
+            status: status.clone(),
         };
 
         let _ = self.event_tx.send(event);
@@ -93,7 +101,7 @@ impl Tool for SetStatusTool {
         Ok(SetStatusOutput {
             success: true,
             worker_id: self.worker_id,
-            status: args.status,
+            status,
         })
     }
 }

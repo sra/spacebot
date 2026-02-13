@@ -138,9 +138,11 @@ impl Tool for FileTool {
 }
 
 async fn do_file_read(path: &Path) -> Result<FileOutput, FileError> {
-    let content = tokio::fs::read_to_string(path)
+    let raw = tokio::fs::read_to_string(path)
         .await
         .map_err(|e| FileError(format!("Failed to read file: {e}")))?;
+
+    let content = crate::tools::truncate_output(&raw, crate::tools::MAX_TOOL_OUTPUT_BYTES);
 
     Ok(FileOutput {
         success: true,
@@ -187,29 +189,36 @@ async fn do_file_list(path: &Path) -> Result<FileOutput, FileError> {
         .await
         .map_err(|e| FileError(format!("Failed to read directory: {e}")))?;
 
+    let max_entries = crate::tools::MAX_DIR_ENTRIES;
+    let mut total_count = 0usize;
+
     while let Some(entry) = reader
         .next_entry()
         .await
         .map_err(|e| FileError(format!("Failed to read entry: {e}")))?
     {
-        let metadata = entry
-            .metadata()
-            .await
-            .map_err(|e| FileError(format!("Failed to read metadata: {e}")))?;
+        total_count += 1;
 
-        let entry_type = if metadata.is_file() {
-            "file".to_string()
-        } else if metadata.is_dir() {
-            "directory".to_string()
-        } else {
-            "other".to_string()
-        };
+        if entries.len() < max_entries {
+            let metadata = entry
+                .metadata()
+                .await
+                .map_err(|e| FileError(format!("Failed to read metadata: {e}")))?;
 
-        entries.push(FileEntryOutput {
-            name: entry.file_name().to_string_lossy().to_string(),
-            entry_type,
-            size: metadata.len(),
-        });
+            let entry_type = if metadata.is_file() {
+                "file".to_string()
+            } else if metadata.is_dir() {
+                "directory".to_string()
+            } else {
+                "other".to_string()
+            };
+
+            entries.push(FileEntryOutput {
+                name: entry.file_name().to_string_lossy().to_string(),
+                entry_type,
+                size: metadata.len(),
+            });
+        }
     }
 
     // Sort entries: directories first, then files, both alphabetically
@@ -222,6 +231,14 @@ async fn do_file_list(path: &Path) -> Result<FileOutput, FileError> {
             _ => a.name.cmp(&b.name),
         }
     });
+
+    if total_count > max_entries {
+        entries.push(FileEntryOutput {
+            name: format!("... and {} more entries (listing capped at {max_entries})", total_count - max_entries),
+            entry_type: "notice".to_string(),
+            size: 0,
+        });
+    }
 
     Ok(FileOutput {
         success: true,
