@@ -147,6 +147,20 @@ process_types = ["channel", "branch"]
 "anthropic/claude-sonnet-4" = ["anthropic/claude-haiku-4.5"]
 ```
 
+**Z.ai (GLM) example** — use GLM models directly with a [GLM Coding Plan](https://z.ai) subscription:
+
+```toml
+[llm]
+zhipu_key = "env:ZHIPU_API_KEY"
+
+[defaults.routing]
+channel = "zhipu/glm-4.7"
+worker = "zhipu/glm-4.7"
+
+[defaults.routing.task_overrides]
+coding = "zhipu/glm-4.7"
+```
+
 ### Skills
 
 Extensible skill system for domain-specific behavior:
